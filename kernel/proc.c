@@ -90,7 +90,7 @@ allocpid() {
 // and return with p->lock held.
 // If there are no free procs, or a memory allocation fails, return 0.
 static struct proc*
-allocproc(void)
+allocproc(void)//创建新进程
 {
   struct proc *p;
 
@@ -127,6 +127,7 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->syscall_need_trace_mask = 0;//初始化
   return p;
 }
 
@@ -295,6 +296,8 @@ fork(void)
 
   np->state = RUNNABLE;
 
+  np->syscall_need_trace_mask = p->syscall_need_trace_mask;//继承父进程的追踪系统调用号
+  
   release(&np->lock);
 
   return pid;
@@ -692,4 +695,15 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+//获取当前使用进程数量
+uint64 
+getprocnum(){
+  int cnt = 0;
+  for(struct proc* p = proc; p < &proc[NPROC]; p++){
+    if(p->state != UNUSED){
+      cnt++;
+    }
+  }
+  return cnt;
 }
