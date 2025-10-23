@@ -440,3 +440,43 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+//按层级递归打印pgtable
+static void 
+vmprint_recur(pagetable_t pagetable,uint16 level)
+{
+  // there are 2^9 = 512 PTEs in a page table.
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    //页表条目有效
+    if(pte & PTE_V){
+      for(int j = 0;j < level;j++){
+        printf(j? " ..":"..");
+      }
+      printf("%d: pte %p pa %p\n",i,pte,PTE2PA(pte));
+      //pte不可写不可读不可执行，说明是页表，需要继续递归打印下一级页表
+      if((pte & (PTE_R|PTE_W|PTE_X)) == 0){
+        vmprint_recur((pagetable_t)PTE2PA(pte),level + 1);
+      }
+    }
+  }
+}
+
+/*
+output exp: ..的个数代表第几级页表，后面是页号，pte是下一级页表的虚拟地址，pa是物理地址
+page table 0x0000000087f6e000
+..0: pte 0x0000000021fda801 pa 0x0000000087f6a000
+.. ..0: pte 0x0000000021fda401 pa 0x0000000087f69000
+.. .. ..0: pte 0x0000000021fdac1f pa 0x0000000087f6b000
+.. .. ..1: pte 0x0000000021fda00f pa 0x0000000087f68000
+.. .. ..2: pte 0x0000000021fd9c1f pa 0x0000000087f67000
+..255: pte 0x0000000021fdb401 pa 0x0000000087f6d000
+.. ..511: pte 0x0000000021fdb001 pa 0x0000000087f6c000
+.. .. ..510: pte 0x0000000021fdd807 pa 0x0000000087f76000
+.. .. ..511: pte 0x0000000020001c0b pa 0x0000000080007000
+*/
+void 
+vmprint(pagetable_t pagetable) 
+{
+  printf("page table %p\n",pagetable);
+  vmprint_recur(pagetable,1);//从第一级开始打印
+}
