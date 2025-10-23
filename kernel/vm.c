@@ -397,23 +397,23 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-  uint64 n, va0, pa0;
+  // uint64 n, va0, pa0;
 
-  while(len > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > len)
-      n = len;
-    memmove(dst, (void *)(pa0 + (srcva - va0)), n);
+  // while(len > 0){
+  //   va0 = PGROUNDDOWN(srcva);
+  //   pa0 = walkaddr(pagetable, va0);
+  //   if(pa0 == 0)
+  //     return -1;
+  //   n = PGSIZE - (srcva - va0);
+  //   if(n > len)
+  //     n = len;
+  //   memmove(dst, (void *)(pa0 + (srcva - va0)), n);
 
-    len -= n;
-    dst += n;
-    srcva = va0 + PGSIZE;
-  }
-  return 0;
+  //   len -= n;
+  //   dst += n;
+  //   srcva = va0 + PGSIZE;
+  // }
+  return copyin_new(pagetable,dst,srcva,len);
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -423,40 +423,41 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
-  uint64 n, va0, pa0;
-  int got_null = 0;
+  // uint64 n, va0, pa0;
+  // int got_null = 0;
 
-  while(got_null == 0 && max > 0){
-    va0 = PGROUNDDOWN(srcva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (srcva - va0);
-    if(n > max)
-      n = max;
+  // while(got_null == 0 && max > 0){
+  //   va0 = PGROUNDDOWN(srcva);
+  //   pa0 = walkaddr(pagetable, va0);
+  //   if(pa0 == 0)
+  //     return -1;
+  //   n = PGSIZE - (srcva - va0);
+  //   if(n > max)
+  //     n = max;
 
-    char *p = (char *) (pa0 + (srcva - va0));
-    while(n > 0){
-      if(*p == '\0'){
-        *dst = '\0';
-        got_null = 1;
-        break;
-      } else {
-        *dst = *p;
-      }
-      --n;
-      --max;
-      p++;
-      dst++;
-    }
+  //   char *p = (char *) (pa0 + (srcva - va0));
+  //   while(n > 0){
+  //     if(*p == '\0'){
+  //       *dst = '\0';
+  //       got_null = 1;
+  //       break;
+  //     } else {
+  //       *dst = *p;
+  //     }
+  //     --n;
+  //     --max;
+  //     p++;
+  //     dst++;
+  //   }
 
-    srcva = va0 + PGSIZE;
-  }
-  if(got_null){
-    return 0;
-  } else {
-    return -1;
-  }
+  //   srcva = va0 + PGSIZE;
+  // }
+  // if(got_null){
+  //   return 0;
+  // } else {
+  //   return -1;
+  // }
+  return copyinstr_new(pagetable,dst,srcva,max);
 }
 //按层级递归打印pgtable
 static void 
@@ -497,4 +498,37 @@ vmprint(pagetable_t pagetable)
 {
   printf("page table %p\n",pagetable);
   vmprint_recur(pagetable,1);//从第一级开始打印
+}
+/*
+pagetable_t pagetable：用户进程的页表
+pagetable_t kernel_pagetable：内核的页表
+uint64 oldsz：用户空间原有大小
+uint64 newsz：用户空间新大小
+将用户页表拷贝到内核页表
+*/
+void 
+u2kvmcopy(pagetable_t pagetable, pagetable_t kernel_pagetable, uint64 oldsz, uint64 newsz)
+{
+  pte_t *pte_user, *pte_kernel;  // 定义用户和内核页表项指针
+  oldsz = PGROUNDUP(oldsz);  // 将oldsz向上对齐到页面边界（即页大小PGSIZE的整数倍）
+  
+  // 遍历从oldsz到newsz的每一页
+  for (uint64 i = oldsz; i < newsz; i += PGSIZE) {
+    // 在用户页表中查找虚拟地址i对应的页表项地址
+    if((pte_user = walk(pagetable, i, 0)) == 0)
+      panic("u2kvmcopy: src pte does not exist");
+    
+    // 在内核页表中查找或创建虚拟地址i对应的页表项地址
+    if((pte_kernel = walk(kernel_pagetable, i, 1)) == 0)
+      panic("u2kvmcopy: pte walk failed");
+    
+    // 从用户页表项获取物理地址
+    uint64 pa = PTE2PA(*pte_user);
+    
+    // 获取用户页表项的权限标志，并移除用户访问权限(PTE_U)
+    uint flags = (PTE_FLAGS(*pte_user)) & (~PTE_U);
+    
+    // 设置内核页表项：物理地址 + 修改后的权限标志
+    *pte_kernel = PA2PTE(pa) | flags;
+  }
 }

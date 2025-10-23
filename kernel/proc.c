@@ -268,6 +268,9 @@ userinit(void)
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
+  // 复制用户页表到内核页表
+  u2kvmcopy(p->pagetable,p->kernel_pagetable,0,p->sz);
+
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -290,9 +293,16 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
+    // 加上PLIC限制
+    if (PGROUNDUP(sz + n) >= PLIC){
+      return -1;
+    }
+    //增加n大小内存
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
+    // 复制用户页表到内核页表,此时oldsz=sz-n，newsz=sz
+    u2kvmcopy(p->pagetable,p->kernel_pagetable,sz-n,sz);
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
@@ -323,6 +333,9 @@ fork(void)
   np->sz = p->sz;
 
   np->parent = p;
+
+  // 子进程复制用户页表到内核页表
+  u2kvmcopy(np->pagetable,np->kernel_pagetable,0,np->sz);
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
