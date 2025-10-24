@@ -77,8 +77,21 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  //加入预警机制
+  if(which_dev == 2){
+    if(!p->is_alarming){
+      if(p->alarm_interval > p->alarm_ticks){
+        p->alarm_ticks++;
+      }else{
+        *p->alarm_tf = *p->trapframe;
+        //memmove(p->alarm_tf,p->trapframe,sizeof(*p->trapframe));
+        p->trapframe->epc = (uint64)p->alarm_handler;//保存程序计数器
+        p->is_alarming = 1;
+        p->alarm_ticks = 0;
+      }
+    }
     yield();
+  }
 
   usertrapret();
 }
