@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "XV6实验调试",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/user/_${fileBasenameNoExtension}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb-multiarch",
+            "miDebuggerServerAddress": "127.0.0.1:26000"//tcp后面的数字补充在这
+        },
+
+       
+
+    ]
+
+}
